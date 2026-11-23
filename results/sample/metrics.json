@@ -1,0 +1,62 @@
+{
+  "mode": "SAMPLE (SYNTHETIC - pipeline check only)",
+  "horizon_days": 7,
+  "results": [
+    {
+      "model": "Rule: After-Hours USB",
+      "threshold": 1.0,
+      "precision": 0.619,
+      "recall": 0.7647,
+      "f1": 0.6842,
+      "pr_auc": null,
+      "false_positives_per_day": 0.4,
+      "test_insiders_total": 3,
+      "test_insiders_detected": 3,
+      "insiders_warned_ge_3_days": 3,
+      "median_lead_time_days": 7.0,
+      "mean_lead_time_days": 5.666666666666667
+    },
+    {
+      "model": "Logistic Regression",
+      "threshold": 0.05,
+      "precision": 0.8947,
+      "recall": 1.0,
+      "f1": 0.9444,
+      "pr_auc": 1.0,
+      "false_positives_per_day": 0.1,
+      "test_insiders_total": 3,
+      "test_insiders_detected": 3,
+      "insiders_warned_ge_3_days": 3,
+      "median_lead_time_days": 7.0,
+      "mean_lead_time_days": 5.666666666666667
+    },
+    {
+      "model": "Decision Tree",
+      "threshold": 0.875,
+      "precision": 0.8889,
+      "recall": 0.9412,
+      "f1": 0.9143,
+      "pr_auc": 0.9712,
+      "false_positives_per_day": 0.1,
+      "test_insiders_total": 3,
+      "test_insiders_detected": 3,
+      "insiders_warned_ge_3_days": 3,
+      "median_lead_time_days": 7.0,
+      "mean_lead_time_days": 5.666666666666667
+    },
+    {
+      "model": "Random Forest",
+      "threshold": 0.35,
+      "precision": 0.8095,
+      "recall": 1.0,
+      "f1": 0.8947,
+      "pr_auc": 1.0,
+      "false_positives_per_day": 0.2,
+      "test_insiders_total": 3,
+      "test_insiders_detected": 3,
+      "insiders_warned_ge_3_days": 3,
+      "median_lead_time_days": 7.0,
+      "mean_lead_time_days": 5.666666666666667
+    }
+  ]
+}
