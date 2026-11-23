@@ -7,6 +7,7 @@ Usage:
 
 import argparse
 import json
+from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -90,8 +91,13 @@ def evaluate_predictions(name: str, test_df: pd.DataFrame, preds: np.ndarray, pr
     return metrics
 
 
-def run_pipeline(full_mode: bool) -> None:
-    data_dir = config.DATA_RAW_DIR if full_mode else config.DATA_SAMPLE_DIR
+def run_pipeline(full_mode: bool, data_dir_override: str | None = None) -> None:
+    if data_dir_override:
+        data_dir = Path(data_dir_override)
+    else:
+        data_dir = config.DATA_RAW_DIR if full_mode else config.DATA_SAMPLE_DIR
+
+    
     out_dir = config.RESULTS_FULL_DIR if full_mode else config.RESULTS_SAMPLE_DIR
     mode_label = "FULL (CERT r4.2)" if full_mode else "SAMPLE (SYNTHETIC - pipeline check only)"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -186,6 +192,7 @@ def run_pipeline(full_mode: bool) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run early-warning insider threat pipeline.")
-    parser.add_argument("--full", action="store_true", help="Run on full CERT r4.2 dataset in data/raw/.")
+    parser.add_argument("--full", action="store_true", help="Run on full CERT r4.2 dataset.")
+    parser.add_argument("--data-dir", type=str, default=None, help="Optional path to raw CERT r4.2 folder.")
     args = parser.parse_args()
-    run_pipeline(full_mode=args.full)
+    run_pipeline(full_mode=args.full, data_dir_override=args.data_dir)
