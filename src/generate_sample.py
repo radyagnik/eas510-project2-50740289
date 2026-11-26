@@ -38,9 +38,22 @@ def generate_synthetic_sample():
     device_rows = []
     file_rows = []
     email_rows = []
+    http_rows = []
+    psych_rows = []
     insider_rows = []
 
     row_id = 1
+    for user in users:
+        psych_rows.append({
+            "employee_name": f"User {user}",
+            "user_id": user,
+            "O": int(rng.integers(15, 50)),
+            "C": int(rng.integers(15, 50)),
+            "E": int(rng.integers(15, 50)),
+            "A": int(rng.integers(15, 50)),
+            "N": int(rng.integers(15, 50)),
+        })
+
     for user, attack_day in insider_attack_days.items():
         attack_start = start_date + timedelta(days=attack_day, hours=21)
         attack_end = attack_start + timedelta(days=2)
@@ -52,6 +65,10 @@ def generate_synthetic_sample():
             "start": attack_start.strftime("%m/%d/%Y %H:%M:%S"),
             "end": attack_end.strftime("%m/%d/%Y %H:%M:%S"),
         })
+
+    normal_urls = ["http://intranet.dtaa.com/home", "http://news.example.com/tech", "http://docs.example.com/ref"]
+    job_urls = ["http://www.indeed.com/jobs", "http://www.linkedin.com/jobs", "http://www.monster.com/careers"]
+    upload_urls = ["http://wikileaks.org/upload", "http://www.dropbox.com/upload", "http://pastebin.com/raw"]
 
     for day_idx in range(n_days):
         cur_date = start_date + timedelta(days=day_idx)
@@ -65,7 +82,6 @@ def generate_synthetic_sample():
                 and (attack_day - config.PREDICTION_HORIZON_DAYS) <= day_idx < attack_day
             )
 
-            # Skip most weekend activity for normal users
             if is_weekend and not in_pre_window and rng.random() < 0.85:
                 continue
 
@@ -75,24 +91,18 @@ def generate_synthetic_sample():
                 hour = int(rng.integers(8, 17))
                 ts = cur_date + timedelta(hours=hour, minutes=int(rng.integers(0, 60)))
                 logon_rows.append({
-                    "id": f"L{row_id}",
-                    "date": ts.strftime("%m/%d/%Y %H:%M:%S"),
-                    "user": user,
-                    "pc": pc,
-                    "activity": "Logon",
+                    "id": f"L{row_id}", "date": ts.strftime("%m/%d/%Y %H:%M:%S"),
+                    "user": user, "pc": pc, "activity": "Logon",
                 })
                 row_id += 1
 
-            # After-hours logon (rare normally, more frequent in pre-theft ramp)
+            # After-hours logon
             if (in_pre_window and rng.random() < 0.65) or (not in_pre_window and rng.random() < 0.04):
                 hour = int(rng.choice([20, 21, 22, 23, 5, 6]))
                 ts = cur_date + timedelta(hours=hour, minutes=int(rng.integers(0, 60)))
                 logon_rows.append({
-                    "id": f"L{row_id}",
-                    "date": ts.strftime("%m/%d/%Y %H:%M:%S"),
-                    "user": user,
-                    "pc": pc,
-                    "activity": "Logon",
+                    "id": f"L{row_id}", "date": ts.strftime("%m/%d/%Y %H:%M:%S"),
+                    "user": user, "pc": pc, "activity": "Logon",
                 })
                 row_id += 1
 
@@ -107,11 +117,8 @@ def generate_synthetic_sample():
                     hour = int(rng.integers(9, 17))
                 ts = cur_date + timedelta(hours=hour, minutes=int(rng.integers(0, 60)))
                 device_rows.append({
-                    "id": f"D{row_id}",
-                    "date": ts.strftime("%m/%d/%Y %H:%M:%S"),
-                    "user": user,
-                    "pc": pc,
-                    "activity": "Connect",
+                    "id": f"D{row_id}", "date": ts.strftime("%m/%d/%Y %H:%M:%S"),
+                    "user": user, "pc": pc, "activity": "Connect",
                 })
                 row_id += 1
 
@@ -121,12 +128,8 @@ def generate_synthetic_sample():
                 hour = int(rng.choice([20, 21, 22])) if (in_pre_window and rng.random() < 0.5) else int(rng.integers(9, 17))
                 ts = cur_date + timedelta(hours=hour, minutes=int(rng.integers(0, 60)))
                 file_rows.append({
-                    "id": f"F{row_id}",
-                    "date": ts.strftime("%m/%d/%Y %H:%M:%S"),
-                    "user": user,
-                    "pc": pc,
-                    "filename": "doc.pdf",
-                    "content": "",
+                    "id": f"F{row_id}", "date": ts.strftime("%m/%d/%Y %H:%M:%S"),
+                    "user": user, "pc": pc, "filename": "doc.pdf", "content": "",
                 })
                 row_id += 1
 
@@ -139,17 +142,29 @@ def generate_synthetic_sample():
                 recipient = "external@gmail.com" if is_external else f"colleague{config.COMPANY_DOMAIN}"
                 attachments = int(rng.poisson(1.2)) if is_external and in_pre_window else int(rng.random() < 0.15)
                 email_rows.append({
-                    "id": f"E{row_id}",
-                    "date": ts.strftime("%m/%d/%Y %H:%M:%S"),
-                    "user": user,
-                    "pc": pc,
-                    "to": recipient,
-                    "cc": "",
-                    "bcc": "",
+                    "id": f"E{row_id}", "date": ts.strftime("%m/%d/%Y %H:%M:%S"),
+                    "user": user, "pc": pc, "to": recipient, "cc": "", "bcc": "",
                     "from": f"{user.lower()}{config.COMPANY_DOMAIN}",
-                    "size": int(rng.integers(5000, 500000)),
-                    "attachments": attachments,
-                    "content": "",
+                    "size": int(rng.integers(5000, 500000)), "attachments": attachments, "content": "",
+                })
+                row_id += 1
+
+            # HTTP web visits
+            http_count = int(rng.poisson(6.0)) if in_pre_window else int(rng.poisson(3.0))
+            for _ in range(http_count):
+                if in_pre_window and rng.random() < 0.35:
+                    url = str(rng.choice(job_urls))
+                    hour = int(rng.choice([12, 17, 20, 21]))
+                elif in_pre_window and rng.random() < 0.25:
+                    url = str(rng.choice(upload_urls))
+                    hour = int(rng.choice([20, 21, 22]))
+                else:
+                    url = str(rng.choice(normal_urls))
+                    hour = int(rng.integers(8, 18))
+                ts = cur_date + timedelta(hours=hour, minutes=int(rng.integers(0, 60)))
+                http_rows.append({
+                    "id": f"H{row_id}", "date": ts.strftime("%m/%d/%Y %H:%M:%S"),
+                    "user": user, "pc": pc, "url": url, "content": "",
                 })
                 row_id += 1
 
@@ -157,6 +172,8 @@ def generate_synthetic_sample():
     pd.DataFrame(device_rows).to_csv(out_dir / "device.csv", index=False)
     pd.DataFrame(file_rows).to_csv(out_dir / "file.csv", index=False)
     pd.DataFrame(email_rows).to_csv(out_dir / "email.csv", index=False)
+    pd.DataFrame(http_rows).to_csv(out_dir / "http.csv", index=False)
+    pd.DataFrame(psych_rows).to_csv(out_dir / "psychometric.csv", index=False)
     pd.DataFrame(insider_rows).to_csv(out_dir / "insiders.csv", index=False)
 
     (out_dir / "README.md").write_text(

@@ -24,3 +24,7 @@ TEST_RATIO = 0.20
 
 # Chunk size for reading large CERT CSVs safely in low RAM
 CHUNK_SIZE = 200_000
+
+# Regex patterns for high-signal web domains in http.csv (case-insensitive)
+JOB_SEARCH_URL_PATTERN = r"indeed|monster|linkedin|careerbuilder|simplyhired|glassdoor|job|career|resume"
+UPLOAD_CLOUD_URL_PATTERN = r"wikileaks|dropbox|drive\.google|upload|sendspace|mediafire|rapidshare|megaupload|pastebin|box\.com"

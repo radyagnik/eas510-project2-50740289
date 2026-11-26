@@ -91,7 +91,7 @@ def evaluate_predictions(name: str, test_df: pd.DataFrame, preds: np.ndarray, pr
     return metrics
 
 
-def run_pipeline(full_mode: bool, data_dir_override: str | None = None) -> None:
+def run_pipeline(full_mode: bool, data_dir_override: str | None = None, rebuild_cache: bool = False) -> None:
     if data_dir_override:
         data_dir = Path(data_dir_override)
     else:
@@ -109,7 +109,7 @@ def run_pipeline(full_mode: bool, data_dir_override: str | None = None) -> None:
         )
 
     print(f"=== Running Early-Warning Pipeline [{mode_label}] ===")
-    df, insiders, feature_cols = build_daily_dataset(data_dir)
+    df, insiders, feature_cols = build_daily_dataset(data_dir, use_cache=full_mode, rebuild_cache=rebuild_cache)
     train_df, val_df, test_df = chronological_split(df)
 
     print(f"Total user-days: {len(df):,} | Positive warning days: {int(df['label'].sum()):,}")
@@ -194,5 +194,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run early-warning insider threat pipeline.")
     parser.add_argument("--full", action="store_true", help="Run on full CERT r4.2 dataset.")
     parser.add_argument("--data-dir", type=str, default=None, help="Optional path to raw CERT r4.2 folder.")
+    parser.add_argument("--rebuild-cache", action="store_true", help="Ignore daily_base_cache.csv and re-parse raw logs.")
     args = parser.parse_args()
-    run_pipeline(full_mode=args.full, data_dir_override=args.data_dir)
+    run_pipeline(full_mode=args.full, data_dir_override=args.data_dir, rebuild_cache=args.rebuild_cache)

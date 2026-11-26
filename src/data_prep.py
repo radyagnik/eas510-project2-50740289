@@ -100,7 +100,6 @@ def _aggregate_email(path: Path) -> pd.DataFrame:
             + ";"
             + chunk["bcc"].fillna("").astype(str)
         )
-        # External email if at least one recipient address does not end with company domain
         has_external = recipients.apply(
             lambda s: int(any(addr.strip() and not addr.strip().lower().endswith(config.COMPANY_DOMAIN) for addr in s.split(";")))
         )
@@ -129,27 +128,103 @@ def _aggregate_email(path: Path) -> pd.DataFrame:
     return df.groupby(["user", "day"], as_index=False).sum()
 
 
+def _aggregate_http(path: Path) -> pd.DataFrame:
+    """Stream http.csv in chunks (skipping the huge content column) to extract web signals."""
+    cols = ["user", "day", "http_count", "after_hours_http_count", "job_search_http_count", "upload_cloud_http_count"]
+    if not path.exists():
+        return pd.DataFrame(columns=cols)
+
+    parts = []
+    chunk_num = 0
+    for chunk in pd.read_csv(path, usecols=["date", "user", "url"], chunksize=config.CHUNK_SIZE):
+        chunk_num += 1
+        if chunk_num % 20 == 0:
+            print(f"  ...parsed {chunk_num * config.CHUNK_SIZE:,} http.csv rows")
+
+        dt = pd.to_datetime(chunk["date"], format="%m/%d/%Y %H:%M:%S", errors="coerce")
+        url_str = chunk["url"].fillna("").astype(str)
+
+        chunk = chunk.assign(
+            day=dt.dt.floor("D"),
+            http_count=1,
+            after_hours_http_count=_is_after_hours(dt).astype(int),
+            job_search_http_count=url_str.str.contains(config.JOB_SEARCH_URL_PATTERN, case=False, regex=True).astype(int),
+            upload_cloud_http_count=url_str.str.contains(config.UPLOAD_CLOUD_URL_PATTERN, case=False, regex=True).astype(int),
+        ).dropna(subset=["day"])
+
+        agg = chunk.groupby(["user", "day"], as_index=False).agg(
+            http_count=("http_count", "sum"),
+            after_hours_http_count=("after_hours_http_count", "sum"),
+            job_search_http_count=("job_search_http_count", "sum"),
+            upload_cloud_http_count=("upload_cloud_http_count", "sum"),
+        )
+        parts.append(agg)
+
+    if not parts:
+        return pd.DataFrame(columns=cols)
+
+    df = pd.concat(parts, ignore_index=True)
+    return df.groupby(["user", "day"], as_index=False).sum()
+
+
+def _load_psychometric(path: Path) -> pd.DataFrame:
+    cols = ["user", "O", "C", "E", "A", "N"]
+    if not path.exists():
+        return pd.DataFrame(columns=cols)
+
+    df = pd.read_csv(path)
+    if "user_id" in df.columns and "user" not in df.columns:
+        df = df.rename(columns={"user_id": "user"})
+    keep = [c for c in cols if c in df.columns]
+    return df[keep].drop_duplicates(subset=["user"])
+
+
 def load_insiders(data_dir: Path) -> pd.DataFrame:
     insiders_path = data_dir / "insiders.csv"
     ins = pd.read_csv(insiders_path)
     ins = ins[ins["dataset"].astype(str).str.strip() == "4.2"].copy()
     ins["attack_start_day"] = pd.to_datetime(ins["start"], format="%m/%d/%Y %H:%M:%S", errors="coerce").dt.floor("D")
     ins = ins.dropna(subset=["attack_start_day"])
-    # Keep earliest attack start date per user
     ins = ins.sort_values("attack_start_day").groupby("user", as_index=False).first()
     return ins[["user", "scenario", "attack_start_day"]]
 
 
-def build_daily_dataset(data_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
-    """Return (labeled_daily_df, insiders_df, feature_columns)."""
+def _load_or_build_daily_base(data_dir: Path, use_cache: bool, rebuild_cache: bool) -> pd.DataFrame:
+    cache_path = data_dir / "daily_base_cache.csv"
+    if use_cache and not rebuild_cache and cache_path.exists():
+        print(f"Loading cached daily aggregates from {cache_path} (use --rebuild-cache to re-parse raw CSVs)...")
+        return pd.read_csv(cache_path, parse_dates=["day"])
+
+    print("Aggregating logon.csv...")
     logon = _aggregate_logon(data_dir / "logon.csv")
+    print("Aggregating device.csv...")
     device = _aggregate_device(data_dir / "device.csv")
+    print("Aggregating file.csv...")
     files = _aggregate_file(data_dir / "file.csv")
+    print("Aggregating email.csv...")
     email = _aggregate_email(data_dir / "email.csv")
+    print("Aggregating http.csv...")
+    http = _aggregate_http(data_dir / "http.csv")
 
     df = logon.merge(device, on=["user", "day"], how="outer")
     df = df.merge(files, on=["user", "day"], how="outer")
     df = df.merge(email, on=["user", "day"], how="outer")
+    df = df.merge(http, on=["user", "day"], how="outer")
+
+    if use_cache:
+        df.to_csv(cache_path, index=False)
+        print(f"Saved daily base cache to {cache_path}")
+
+    return df
+
+
+def build_daily_dataset(
+    data_dir: Path,
+    use_cache: bool = False,
+    rebuild_cache: bool = False,
+) -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
+    """Return (labeled_daily_df, insiders_df, feature_columns)."""
+    df = _load_or_build_daily_base(data_dir, use_cache=use_cache, rebuild_cache=rebuild_cache)
 
     base_cols = [
         "logon_count",
@@ -163,8 +238,14 @@ def build_daily_dataset(data_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame, lis
         "external_email_count",
         "total_attachments",
         "total_email_size",
+        "http_count",
+        "after_hours_http_count",
+        "job_search_http_count",
+        "upload_cloud_http_count",
     ]
     for col in base_cols:
+        if col not in df.columns:
+            df[col] = 0.0
         df[col] = df[col].fillna(0.0)
 
     df = df.sort_values(["user", "day"]).reset_index(drop=True)
@@ -176,6 +257,9 @@ def build_daily_dataset(data_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame, lis
         "after_hours_usb_count",
         "file_access_count",
         "external_email_count",
+        "after_hours_http_count",
+        "job_search_http_count",
+        "upload_cloud_http_count",
     ]
     feature_cols = list(base_cols)
 
@@ -190,7 +274,6 @@ def build_daily_dataset(data_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame, lis
         df[r_mean_col] = df.groupby("user")[col].transform(
             lambda s: s.rolling(config.ROLLING_WINDOW_DAYS, min_periods=1).mean()
         )
-        # Expanding mean strictly up to day t-1 (shifted by 1 to prevent leakage)
         past_mean = (
             df.groupby("user")[col]
             .transform(lambda s: s.shift(1).expanding(min_periods=1).mean())
@@ -199,6 +282,14 @@ def build_daily_dataset(data_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame, lis
         df[diff_col] = df[col] - past_mean
         feature_cols.extend([r_sum_col, r_mean_col, diff_col])
 
+    # Merge static OCEAN psychometric traits
+    psych = _load_psychometric(data_dir / "psychometric.csv")
+    if not psych.empty:
+        df = df.merge(psych, on="user", how="left")
+        for trait in ["O", "C", "E", "A", "N"]:
+            if trait in df.columns:
+                feature_cols.append(trait)
+
     # Merge insider ground truth and create early-warning label
     insiders = load_insiders(data_dir)
     df = df.merge(insiders, on="user", how="left")
@@ -206,8 +297,7 @@ def build_daily_dataset(data_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame, lis
     days_before_attack = (df["attack_start_day"] - df["day"]).dt.days
     df["days_before_attack"] = days_before_attack
 
-    # Drop days on or after the attack start for malicious insiders
-    # so we evaluate strictly on EARLY warning before theft occurs
+    # Drop days on or after attack start for malicious insiders (strictly early warning)
     df = df[df["days_before_attack"].isna() | (df["days_before_attack"] > 0)].copy()
 
     df["label"] = (
