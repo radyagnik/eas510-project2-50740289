@@ -1,5 +1,6 @@
 model,threshold,precision,recall,f1,pr_auc,false_positives_per_day,test_insiders_total,test_insiders_detected,insiders_warned_ge_3_days,median_lead_time_days,mean_lead_time_days
-Rule: After-Hours USB,1.0,0.9286,0.7647,0.8387,,0.05,3,3,3,6.0,5.333333333333333
-Logistic Regression,0.475,1.0,1.0,1.0,1.0,0.0,3,3,3,7.0,5.666666666666667
-Decision Tree,0.875,1.0,0.8235,0.9032,0.8661,0.0,3,3,2,6.0,5.0
-Random Forest,0.275,1.0,1.0,1.0,1.0,0.0,3,3,3,7.0,5.666666666666667
+Rule: After-Hours USB,1.0,0.9286,0.7647,0.8387,,0.05,3,3,3,6.0,5.33
+Logistic Regression,0.41,1.0,1.0,1.0,1.0,0.0,3,3,3,7.0,5.67
+Decision Tree,0.86,1.0,0.8235,0.9032,0.8661,0.0,3,3,2,6.0,5.0
+Random Forest,0.28,1.0,1.0,1.0,1.0,0.0,3,3,3,7.0,5.67
+HistGradientBoosting,0.01,1.0,1.0,1.0,1.0,0.0,3,3,3,7.0,5.67

@@ -1,0 +1,13 @@
+feature_set,n_features,model,val_pr_auc,test_pr_auc
+Core (4 logs),26,Logistic Regression,0.0093,0.0066
+Core (4 logs),26,Decision Tree,0.0239,0.0105
+Core (4 logs),26,Random Forest,0.0674,0.0403
+Core (4 logs),26,HistGradientBoosting,0.0933,0.0414
+Core + HTTP,39,Logistic Regression,0.0105,0.007
+Core + HTTP,39,Decision Tree,0.0189,0.0115
+Core + HTTP,39,Random Forest,0.0676,0.0346
+Core + HTTP,39,HistGradientBoosting,0.1287,0.1185
+Core + HTTP + Psych,44,Logistic Regression,0.0095,0.0071
+Core + HTTP + Psych,44,Decision Tree,0.021,0.0126
+Core + HTTP + Psych,44,Random Forest,0.0915,0.0221
+Core + HTTP + Psych,44,HistGradientBoosting,0.1546,0.0619

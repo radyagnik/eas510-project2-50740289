@@ -1,0 +1,9 @@
+model,scenario,insiders_total,insiders_detected,median_lead_time_days
+Logistic Regression,1,1,1,7.0
+Logistic Regression,3,2,2,5.0
+Decision Tree,1,1,1,7.0
+Decision Tree,3,2,2,4.5
+Random Forest,1,1,1,7.0
+Random Forest,3,2,2,5.0
+HistGradientBoosting,1,1,1,7.0
+HistGradientBoosting,3,2,2,5.0

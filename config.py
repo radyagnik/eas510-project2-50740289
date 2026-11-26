@@ -28,3 +28,14 @@ CHUNK_SIZE = 200_000
 # Regex patterns for high-signal web domains in http.csv (case-insensitive)
 JOB_SEARCH_URL_PATTERN = r"indeed|monster|linkedin|careerbuilder|simplyhired|glassdoor|job|career|resume"
 UPLOAD_CLOUD_URL_PATTERN = r"wikileaks|dropbox|drive\.google|upload|sendspace|mediafire|rapidshare|megaupload|pastebin|box\.com"
+
+# SOC alert-budget thresholds (max false positives per day, tuned on validation set)
+SOC_FP_BUDGETS = [1.0, 3.0, 5.0]
+
+# Model hyperparameters
+RF_N_ESTIMATORS = 200
+RF_MAX_DEPTH = 8
+RF_MIN_SAMPLES_LEAF = 5
+HGB_MAX_ITER = 200
+HGB_MAX_DEPTH = 6
+HGB_LEARNING_RATE = 0.05

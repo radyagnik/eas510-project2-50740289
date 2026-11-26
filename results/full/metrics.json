@@ -1,7 +1,95 @@
 {
   "mode": "FULL (CERT r4.2)",
   "horizon_days": 7,
-  "results": [
+  "selected_feature_set": "Core + HTTP + Psych",
+  "n_selected_features": 44,
+  "ablation": [
+    {
+      "feature_set": "Core (4 logs)",
+      "n_features": 26,
+      "model": "Logistic Regression",
+      "val_pr_auc": 0.0093,
+      "test_pr_auc": 0.0066
+    },
+    {
+      "feature_set": "Core (4 logs)",
+      "n_features": 26,
+      "model": "Decision Tree",
+      "val_pr_auc": 0.0239,
+      "test_pr_auc": 0.0105
+    },
+    {
+      "feature_set": "Core (4 logs)",
+      "n_features": 26,
+      "model": "Random Forest",
+      "val_pr_auc": 0.0674,
+      "test_pr_auc": 0.0403
+    },
+    {
+      "feature_set": "Core (4 logs)",
+      "n_features": 26,
+      "model": "HistGradientBoosting",
+      "val_pr_auc": 0.0933,
+      "test_pr_auc": 0.0414
+    },
+    {
+      "feature_set": "Core + HTTP",
+      "n_features": 39,
+      "model": "Logistic Regression",
+      "val_pr_auc": 0.0105,
+      "test_pr_auc": 0.007
+    },
+    {
+      "feature_set": "Core + HTTP",
+      "n_features": 39,
+      "model": "Decision Tree",
+      "val_pr_auc": 0.0189,
+      "test_pr_auc": 0.0115
+    },
+    {
+      "feature_set": "Core + HTTP",
+      "n_features": 39,
+      "model": "Random Forest",
+      "val_pr_auc": 0.0676,
+      "test_pr_auc": 0.0346
+    },
+    {
+      "feature_set": "Core + HTTP",
+      "n_features": 39,
+      "model": "HistGradientBoosting",
+      "val_pr_auc": 0.1287,
+      "test_pr_auc": 0.1185
+    },
+    {
+      "feature_set": "Core + HTTP + Psych",
+      "n_features": 44,
+      "model": "Logistic Regression",
+      "val_pr_auc": 0.0095,
+      "test_pr_auc": 0.0071
+    },
+    {
+      "feature_set": "Core + HTTP + Psych",
+      "n_features": 44,
+      "model": "Decision Tree",
+      "val_pr_auc": 0.021,
+      "test_pr_auc": 0.0126
+    },
+    {
+      "feature_set": "Core + HTTP + Psych",
+      "n_features": 44,
+      "model": "Random Forest",
+      "val_pr_auc": 0.0915,
+      "test_pr_auc": 0.0221
+    },
+    {
+      "feature_set": "Core + HTTP + Psych",
+      "n_features": 44,
+      "model": "HistGradientBoosting",
+      "val_pr_auc": 0.1546,
+      "test_pr_auc": 0.0619
+    }
+  ],
+  "comparison_f1": [
     {
       "model": "Rule: After-Hours USB",
       "threshold": 1.0,
@@ -18,26 +106,26 @@
     },
     {
       "model": "Logistic Regression",
-      "threshold": 0.9,
+      "threshold": 0.82,
       "precision": 0.0095,
-      "recall": 0.4815,
-      "f1": 0.0186,
+      "recall": 0.6667,
+      "f1": 0.0188,
       "pr_auc": 0.0071,
-      "false_positives_per_day": 13.43,
+      "false_positives_per_day": 18.53,
       "test_insiders_total": 7,
-      "test_insiders_detected": 5,
-      "insiders_warned_ge_3_days": 2,
-      "median_lead_time_days": 2.0,
-      "mean_lead_time_days": 3.4
+      "test_insiders_detected": 6,
+      "insiders_warned_ge_3_days": 4,
+      "median_lead_time_days": 6.0,
+      "mean_lead_time_days": 4.83
     },
     {
       "model": "Decision Tree",
-      "threshold": 0.925,
-      "precision": 0.0195,
+      "threshold": 0.94,
+      "precision": 0.0242,
       "recall": 0.4815,
-      "f1": 0.0375,
+      "f1": 0.0461,
       "pr_auc": 0.0126,
-      "false_positives_per_day": 6.47,
+      "false_positives_per_day": 5.19,
       "test_insiders_total": 7,
       "test_insiders_detected": 5,
       "insiders_warned_ge_3_days": 2,
@@ -46,17 +134,299 @@
     },
     {
       "model": "Random Forest",
-      "threshold": 0.8,
+      "threshold": 0.77,
+      "precision": 0.0312,
+      "recall": 0.037,
+      "f1": 0.0339,
+      "pr_auc": 0.0221,
+      "false_positives_per_day": 0.31,
+      "test_insiders_total": 7,
+      "test_insiders_detected": 1,
+      "insiders_warned_ge_3_days": 0,
+      "median_lead_time_days": 1.0,
+      "mean_lead_time_days": 1.0
+    },
+    {
+      "model": "HistGradientBoosting",
+      "threshold": 0.84,
+      "precision": 0.3333,
+      "recall": 0.0741,
+      "f1": 0.1212,
+      "pr_auc": 0.0619,
+      "false_positives_per_day": 0.04,
+      "test_insiders_total": 7,
+      "test_insiders_detected": 2,
+      "insiders_warned_ge_3_days": 0,
+      "median_lead_time_days": 1.5,
+      "mean_lead_time_days": 1.5
+    }
+  ],
+  "soc_budgets": [
+    {
+      "model": "Logistic Regression",
+      "threshold": 1.0,
       "precision": 0.0,
       "recall": 0.0,
       "f1": 0.0,
-      "pr_auc": 0.0221,
-      "false_positives_per_day": 0.21,
+      "pr_auc": 0.0071,
+      "false_positives_per_day": 0.66,
       "test_insiders_total": 7,
       "test_insiders_detected": 0,
       "insiders_warned_ge_3_days": 0,
       "median_lead_time_days": 0.0,
-      "mean_lead_time_days": 0.0
+      "mean_lead_time_days": 0.0,
+      "fp_budget": 1.0
+    },
+    {
+      "model": "Decision Tree",
+      "threshold": 0.95,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "pr_auc": 0.0126,
+      "false_positives_per_day": 0.1,
+      "test_insiders_total": 7,
+      "test_insiders_detected": 0,
+      "insiders_warned_ge_3_days": 0,
+      "median_lead_time_days": 0.0,
+      "mean_lead_time_days": 0.0,
+      "fp_budget": 1.0
+    },
+    {
+      "model": "Random Forest",
+      "threshold": 0.85,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "pr_auc": 0.0221,
+      "false_positives_per_day": 0.11,
+      "test_insiders_total": 7,
+      "test_insiders_detected": 0,
+      "insiders_warned_ge_3_days": 0,
+      "median_lead_time_days": 0.0,
+      "mean_lead_time_days": 0.0,
+      "fp_budget": 1.0
+    },
+    {
+      "model": "HistGradientBoosting",
+      "threshold": 0.74,
+      "precision": 0.0732,
+      "recall": 0.1111,
+      "f1": 0.0882,
+      "pr_auc": 0.0619,
+      "false_positives_per_day": 0.38,
+      "test_insiders_total": 7,
+      "test_insiders_detected": 2,
+      "insiders_warned_ge_3_days": 0,
+      "median_lead_time_days": 1.5,
+      "mean_lead_time_days": 1.5,
+      "fp_budget": 1.0
+    },
+    {
+      "model": "Logistic Regression",
+      "threshold": 1.0,
+      "precision": 0.0039,
+      "recall": 0.037,
+      "f1": 0.0071,
+      "pr_auc": 0.0071,
+      "false_positives_per_day": 2.51,
+      "test_insiders_total": 7,
+      "test_insiders_detected": 1,
+      "insiders_warned_ge_3_days": 1,
+      "median_lead_time_days": 5.0,
+      "mean_lead_time_days": 5.0,
+      "fp_budget": 3.0
+    },
+    {
+      "model": "Decision Tree",
+      "threshold": 0.95,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "pr_auc": 0.0126,
+      "false_positives_per_day": 0.1,
+      "test_insiders_total": 7,
+      "test_insiders_detected": 0,
+      "insiders_warned_ge_3_days": 0,
+      "median_lead_time_days": 0.0,
+      "mean_lead_time_days": 0.0,
+      "fp_budget": 3.0
+    },
+    {
+      "model": "Random Forest",
+      "threshold": 0.71,
+      "precision": 0.06,
+      "recall": 0.1111,
+      "f1": 0.0779,
+      "pr_auc": 0.0221,
+      "false_positives_per_day": 0.47,
+      "test_insiders_total": 7,
+      "test_insiders_detected": 2,
+      "insiders_warned_ge_3_days": 1,
+      "median_lead_time_days": 4.0,
+      "mean_lead_time_days": 4.0,
+      "fp_budget": 3.0
+    },
+    {
+      "model": "HistGradientBoosting",
+      "threshold": 0.56,
+      "precision": 0.0213,
+      "recall": 0.1111,
+      "f1": 0.0357,
+      "pr_auc": 0.0619,
+      "false_positives_per_day": 1.37,
+      "test_insiders_total": 7,
+      "test_insiders_detected": 2,
+      "insiders_warned_ge_3_days": 0,
+      "median_lead_time_days": 1.5,
+      "mean_lead_time_days": 1.5,
+      "fp_budget": 3.0
+    },
+    {
+      "model": "Logistic Regression",
+      "threshold": 0.9998,
+      "precision": 0.0097,
+      "recall": 0.1852,
+      "f1": 0.0185,
+      "pr_auc": 0.0071,
+      "false_positives_per_day": 5.04,
+      "test_insiders_total": 7,
+      "test_insiders_detected": 2,
+      "insiders_warned_ge_3_days": 1,
+      "median_lead_time_days": 3.5,
+      "mean_lead_time_days": 3.5,
+      "fp_budget": 5.0
+    },
+    {
+      "model": "Decision Tree",
+      "threshold": 0.95,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "pr_auc": 0.0126,
+      "false_positives_per_day": 0.1,
+      "test_insiders_total": 7,
+      "test_insiders_detected": 0,
+      "insiders_warned_ge_3_days": 0,
+      "median_lead_time_days": 0.0,
+      "mean_lead_time_days": 0.0,
+      "fp_budget": 5.0
+    },
+    {
+      "model": "Random Forest",
+      "threshold": 0.63,
+      "precision": 0.0226,
+      "recall": 0.1481,
+      "f1": 0.0392,
+      "pr_auc": 0.0221,
+      "false_positives_per_day": 1.71,
+      "test_insiders_total": 7,
+      "test_insiders_detected": 2,
+      "insiders_warned_ge_3_days": 1,
+      "median_lead_time_days": 4.0,
+      "mean_lead_time_days": 4.0,
+      "fp_budget": 5.0
+    },
+    {
+      "model": "HistGradientBoosting",
+      "threshold": 0.47,
+      "precision": 0.0136,
+      "recall": 0.1481,
+      "f1": 0.0248,
+      "pr_auc": 0.0619,
+      "false_positives_per_day": 2.88,
+      "test_insiders_total": 7,
+      "test_insiders_detected": 3,
+      "insiders_warned_ge_3_days": 1,
+      "median_lead_time_days": 2.0,
+      "mean_lead_time_days": 3.33,
+      "fp_budget": 5.0
+    }
+  ],
+  "scenario_breakdown_3fp": [
+    {
+      "model": "Logistic Regression",
+      "scenario": 1,
+      "insiders_total": 4,
+      "insiders_detected": 1,
+      "median_lead_time_days": 5.0
+    },
+    {
+      "model": "Logistic Regression",
+      "scenario": 2,
+      "insiders_total": 2,
+      "insiders_detected": 0,
+      "median_lead_time_days": 0.0
+    },
+    {
+      "model": "Logistic Regression",
+      "scenario": 3,
+      "insiders_total": 1,
+      "insiders_detected": 0,
+      "median_lead_time_days": 0.0
+    },
+    {
+      "model": "Decision Tree",
+      "scenario": 1,
+      "insiders_total": 4,
+      "insiders_detected": 0,
+      "median_lead_time_days": 0.0
+    },
+    {
+      "model": "Decision Tree",
+      "scenario": 2,
+      "insiders_total": 2,
+      "insiders_detected": 0,
+      "median_lead_time_days": 0.0
+    },
+    {
+      "model": "Decision Tree",
+      "scenario": 3,
+      "insiders_total": 1,
+      "insiders_detected": 0,
+      "median_lead_time_days": 0.0
+    },
+    {
+      "model": "Random Forest",
+      "scenario": 1,
+      "insiders_total": 4,
+      "insiders_detected": 1,
+      "median_lead_time_days": 1.0
+    },
+    {
+      "model": "Random Forest",
+      "scenario": 2,
+      "insiders_total": 2,
+      "insiders_detected": 1,
+      "median_lead_time_days": 7.0
+    },
+    {
+      "model": "Random Forest",
+      "scenario": 3,
+      "insiders_total": 1,
+      "insiders_detected": 0,
+      "median_lead_time_days": 0.0
+    },
+    {
+      "model": "HistGradientBoosting",
+      "scenario": 1,
+      "insiders_total": 4,
+      "insiders_detected": 2,
+      "median_lead_time_days": 1.5
+    },
+    {
+      "model": "HistGradientBoosting",
+      "scenario": 2,
+      "insiders_total": 2,
+      "insiders_detected": 0,
+      "median_lead_time_days": 0.0
+    },
+    {
+      "model": "HistGradientBoosting",
+      "scenario": 3,
+      "insiders_total": 1,
+      "insiders_detected": 0,
+      "median_lead_time_days": 0.0
     }
   ]
 }

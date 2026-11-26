@@ -8,87 +8,100 @@ Usage:
 import argparse
 import json
 from pathlib import Path
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.impute import SimpleImputer
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (
-    average_precision_score,
-    f1_score,
-    precision_recall_curve,
-    precision_score,
-    recall_score,
-)
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import average_precision_score, precision_recall_curve
 
 import config
 from src.data_prep import build_daily_dataset, chronological_split
+from src.models import (
+    compute_scenario_breakdown,
+    evaluate_predictions,
+    fit_model,
+    get_models,
+    tune_threshold_f1,
+    tune_threshold_fp_budget,
+)
 
 
-def tune_threshold(y_true: np.ndarray, probs: np.ndarray) -> float:
-    """Pick probability threshold on validation set that maximizes F1."""
-    best_t, best_f1 = 0.5, -1.0
-    for t in np.linspace(0.05, 0.95, 37):
-        preds = (probs >= t).astype(int)
-        score = f1_score(y_true, preds, zero_division=0)
-        if score > best_f1:
-            best_f1 = score
-            best_t = float(t)
-    return best_t
-
-
-def compute_lead_time(test_df: pd.DataFrame, preds: np.ndarray) -> dict:
-    """Measure how many days before attack start each test insider is first warned."""
-    eval_df = test_df[["user", "day", "attack_start_day", "label"]].copy()
-    eval_df["pred"] = preds
-
-    # Test insiders are users who have at least one positive pre-theft day in test_df
-    test_insiders = eval_df.loc[eval_df["label"] == 1, "user"].unique()
-    lead_times = []
-
-    for user in test_insiders:
-        u_df = eval_df[(eval_df["user"] == user) & (eval_df["label"] == 1)]
-        flagged = u_df[u_df["pred"] == 1]
-        if not flagged.empty:
-            first_alert = flagged["day"].min()
-            attack_start = flagged["attack_start_day"].iloc[0]
-            lead_times.append(int((attack_start - first_alert).days))
-
-    n_total = len(test_insiders)
-    n_detected = len(lead_times)
-    n_ge_3 = sum(lt >= 3 for lt in lead_times)
-
+def split_feature_sets(all_features: list[str]) -> dict[str, list[str]]:
+    """Group engineered features into three ablation tiers."""
+    psych_cols = {"O", "C", "E", "A", "N"}
+    core = [c for c in all_features if "http" not in c and c not in psych_cols]
+    core_http = [c for c in all_features if c not in psych_cols]
     return {
-        "test_insiders_total": int(n_total),
-        "test_insiders_detected": int(n_detected),
-        "insiders_warned_ge_3_days": int(n_ge_3),
-        "median_lead_time_days": float(np.median(lead_times)) if lead_times else 0.0,
-        "mean_lead_time_days": float(np.mean(lead_times)) if lead_times else 0.0,
+        "Core (4 logs)": core,
+        "Core + HTTP": core_http,
+        "Core + HTTP + Psych": list(all_features),
     }
 
 
-def evaluate_predictions(name: str, test_df: pd.DataFrame, preds: np.ndarray, probs: np.ndarray | None, threshold: float) -> dict:
-    y_test = test_df["label"].to_numpy()
-    n_test_days = max(1, test_df["day"].nunique())
-    fp_count = int(((preds == 1) & (y_test == 0)).sum())
+def _plot_ablation(ablation_df: pd.DataFrame, out_path: Path, mode_label: str) -> None:
+    pivot = ablation_df.pivot(index="model", columns="feature_set", values="test_pr_auc")
+    ax = pivot.plot(kind="bar", figsize=(8, 5), width=0.75)
+    ax.set_ylabel("Test PR-AUC (Higher is Better)")
+    ax.set_xlabel("")
+    ax.set_title(f"Feature Ablation Study — {mode_label}")
+    ax.grid(axis="y", alpha=0.3)
+    plt.xticks(rotation=15, ha="right")
+    plt.legend(title="Feature Set", loc="best")
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=150)
+    plt.close()
 
-    metrics = {
-        "model": name,
-        "threshold": round(threshold, 3),
-        "precision": round(float(precision_score(y_test, preds, zero_division=0)), 4),
-        "recall": round(float(recall_score(y_test, preds, zero_division=0)), 4),
-        "f1": round(float(f1_score(y_test, preds, zero_division=0)), 4),
-        "pr_auc": round(float(average_precision_score(y_test, probs)), 4) if probs is not None else None,
-        "false_positives_per_day": round(fp_count / n_test_days, 2),
-    }
-    metrics.update(compute_lead_time(test_df, preds))
-    return metrics
+
+def _plot_pr_curves(pr_curves: dict, out_path: Path, title: str) -> None:
+    plt.figure(figsize=(7.5, 5))
+    for name, ((prec, rec, _), ap) in pr_curves.items():
+        plt.plot(rec, prec, linewidth=2, label=f"{name} (PR-AUC = {ap:.4f})")
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.title(title)
+    plt.legend(loc="best")
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=150)
+    plt.close()
+
+
+def _plot_soc_budgets(budget_df: pd.DataFrame, out_path: Path, title: str) -> None:
+    plt.figure(figsize=(7.5, 5))
+    for name, grp in budget_df.groupby("model"):
+        grp = grp.sort_values("fp_budget")
+        plt.plot(
+            grp["fp_budget"],
+            grp["test_insiders_detected"],
+            marker="o",
+            linewidth=2,
+            label=name,
+        )
+    total_insiders = int(budget_df["test_insiders_total"].iloc[0])
+    plt.xticks(config.SOC_FP_BUDGETS, [f"<= {b:g} FP/day" for b in config.SOC_FP_BUDGETS])
+    plt.yticks(range(0, total_insiders + 1))
+    plt.xlabel("Validation-Tuned SOC Alert Budget")
+    plt.ylabel(f"Test Insiders Detected (out of {total_insiders})")
+    plt.title(title)
+    plt.legend(loc="best")
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=150)
+    plt.close()
+
+
+def _plot_feature_importance(imp_df: pd.DataFrame, out_path: Path, title: str) -> None:
+    top = imp_df.head(15).iloc[::-1]
+    plt.figure(figsize=(8, 5.5))
+    plt.barh(top["feature"], top["importance"])
+    plt.xlabel("Random Forest Feature Importance (Gini)")
+    plt.title(title)
+    plt.grid(axis="x", alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=150)
+    plt.close()
 
 
 def run_pipeline(full_mode: bool, data_dir_override: str | None = None, rebuild_cache: bool = False) -> None:
@@ -97,7 +110,6 @@ def run_pipeline(full_mode: bool, data_dir_override: str | None = None, rebuild_
     else:
         data_dir = config.DATA_RAW_DIR if full_mode else config.DATA_SAMPLE_DIR
 
-    
     out_dir = config.RESULTS_FULL_DIR if full_mode else config.RESULTS_SAMPLE_DIR
     mode_label = "FULL (CERT r4.2)" if full_mode else "SAMPLE (SYNTHETIC - pipeline check only)"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -105,11 +117,11 @@ def run_pipeline(full_mode: bool, data_dir_override: str | None = None, rebuild_
     if not (data_dir / "logon.csv").exists():
         raise FileNotFoundError(
             f"Could not find logon.csv in {data_dir}. "
-            "For --full mode, extract CERT r4.2 and insiders.csv into data/raw/."
+            "For --full mode, extract CERT r4.2 and insiders.csv into data/raw/ or pass --data-dir."
         )
 
     print(f"=== Running Early-Warning Pipeline [{mode_label}] ===")
-    df, insiders, feature_cols = build_daily_dataset(data_dir, use_cache=full_mode, rebuild_cache=rebuild_cache)
+    df, insiders, all_features = build_daily_dataset(data_dir, use_cache=full_mode, rebuild_cache=rebuild_cache)
     train_df, val_df, test_df = chronological_split(df)
 
     print(f"Total user-days: {len(df):,} | Positive warning days: {int(df['label'].sum()):,}")
@@ -126,68 +138,158 @@ def run_pipeline(full_mode: bool, data_dir_override: str | None = None, rebuild_
         f"pos={int(test_df['label'].sum())}"
     )
 
-    X_train, y_train = train_df[feature_cols], train_df["label"].to_numpy()
-    X_val, y_val = val_df[feature_cols], val_df["label"].to_numpy()
-    X_test, y_test = test_df[feature_cols], test_df["label"].to_numpy()
+    y_train = train_df["label"].to_numpy()
+    y_val = val_df["label"].to_numpy()
+    y_test = test_df["label"].to_numpy()
 
-    results = []
+    # ------------------------------------------------------------------
+    # Experiment 1: Controlled Feature Ablation
+    # ------------------------------------------------------------------
+    feature_sets = split_feature_sets(all_features)
+    ablation_rows = []
+    cached_outputs = {}  # (fs_name, model_name) -> (pipe, val_probs, test_probs)
+
+    for fs_name, cols in feature_sets.items():
+        X_tr, X_va, X_te = train_df[cols], val_df[cols], test_df[cols]
+        for model_name, pipe in get_models().items():
+            pipe = fit_model(model_name, pipe, X_tr, y_train)
+            val_probs = pipe.predict_proba(X_va)[:, 1]
+            test_probs = pipe.predict_proba(X_te)[:, 1]
+            val_ap = float(average_precision_score(y_val, val_probs))
+            test_ap = float(average_precision_score(y_test, test_probs))
+
+            ablation_rows.append({
+                "feature_set": fs_name,
+                "n_features": len(cols),
+                "model": model_name,
+                "val_pr_auc": round(val_ap, 4),
+                "test_pr_auc": round(test_ap, 4),
+            })
+            cached_outputs[(fs_name, model_name)] = (pipe, val_probs, test_probs)
+
+    ablation_df = pd.DataFrame(ablation_rows)
+    ablation_df.to_csv(out_dir / "ablation_table.csv", index=False)
+    _plot_ablation(ablation_df, out_dir / "ablation_pr_auc.png", mode_label)
+
+    # Select best feature set strictly by mean Validation PR-AUC (zero test leakage)
+    val_summary = ablation_df.groupby("feature_set")["val_pr_auc"].mean()
+    best_fs = str(val_summary.idxmax())
+    best_cols = feature_sets[best_fs]
+
+    print("\n=== Experiment 1: Feature Ablation (Val & Test PR-AUC) ===")
+    print(ablation_df.to_string(index=False))
+    print(f"\nSelected best feature set on Validation mean PR-AUC: '{best_fs}' ({len(best_cols)} features)")
+
+    # ------------------------------------------------------------------
+    # Experiment 2: Primary Model Comparison (Validation-Tuned F1)
+    # ------------------------------------------------------------------
+    f1_results = []
     pr_curves = {}
 
-    # 1. Rule-based baseline: flag any day with after-hours USB use
     rule_preds = (test_df["after_hours_usb_count"] > 0).astype(int).to_numpy()
-    results.append(evaluate_predictions("Rule: After-Hours USB", test_df, rule_preds, None, threshold=1.0))
+    f1_results.append(evaluate_predictions("Rule: After-Hours USB", test_df, rule_preds, None, threshold=1.0))
 
-    # 2. Supervised ML models
-    models = {
-        "Logistic Regression": Pipeline([
-            ("imputer", SimpleImputer(strategy="median")),
-            ("scaler", StandardScaler()),
-            ("clf", LogisticRegression(max_iter=1000, class_weight="balanced", random_state=config.RANDOM_SEED)),
-        ]),
-        "Decision Tree": Pipeline([
-            ("imputer", SimpleImputer(strategy="median")),
-            ("clf", DecisionTreeClassifier(max_depth=5, min_samples_leaf=10, class_weight="balanced", random_state=config.RANDOM_SEED)),
-        ]),
-        "Random Forest": Pipeline([
-            ("imputer", SimpleImputer(strategy="median")),
-            ("clf", RandomForestClassifier(n_estimators=200, max_depth=8, min_samples_leaf=5, class_weight="balanced", random_state=config.RANDOM_SEED, n_jobs=-1)),
-        ]),
-    }
-
-    for name, pipe in models.items():
-        pipe.fit(X_train, y_train)
-        val_probs = pipe.predict_proba(X_val)[:, 1]
-        best_t = tune_threshold(y_val, val_probs)
-
-        test_probs = pipe.predict_proba(X_test)[:, 1]
+    for model_name in get_models().keys():
+        pipe, val_probs, test_probs = cached_outputs[(best_fs, model_name)]
+        best_t = tune_threshold_f1(y_val, val_probs)
         test_preds = (test_probs >= best_t).astype(int)
+        f1_results.append(evaluate_predictions(model_name, test_df, test_preds, test_probs, best_t))
+        pr_curves[model_name] = (
+            precision_recall_curve(y_test, test_probs),
+            average_precision_score(y_test, test_probs),
+        )
 
-        results.append(evaluate_predictions(name, test_df, test_preds, test_probs, best_t))
-        pr_curves[name] = (precision_recall_curve(y_test, test_probs), average_precision_score(y_test, test_probs))
+    comparison_df = pd.DataFrame(f1_results)
+    comparison_df.to_csv(out_dir / "comparison_table.csv", index=False)
+    _plot_pr_curves(
+        pr_curves,
+        out_dir / "pr_curves.png",
+        f"Precision-Recall Curves ({best_fs}) — {mode_label}",
+    )
 
-    results_df = pd.DataFrame(results)
-    print("\n=== Test Set Comparison ===")
-    print(results_df.to_string(index=False))
+    print(f"\n=== Experiment 2: Test Set Comparison [{best_fs}, Val-Tuned F1] ===")
+    print(comparison_df.to_string(index=False))
 
-    # Save tables & JSON
-    results_df.to_csv(out_dir / "comparison_table.csv", index=False)
+    # ------------------------------------------------------------------
+    # Experiment 3: SOC Alert-Budget Thresholding (<= 1, 3, 5 FP/day)
+    # ------------------------------------------------------------------
+    budget_rows = []
+    scenario_rows = []
+
+    for budget in config.SOC_FP_BUDGETS:
+        for model_name in get_models().keys():
+            _, val_probs, test_probs = cached_outputs[(best_fs, model_name)]
+            t_budget = tune_threshold_fp_budget(val_df, val_probs, max_fp_per_day=budget)
+            test_preds = (test_probs >= t_budget).astype(int)
+            row = evaluate_predictions(
+                model_name,
+                test_df,
+                test_preds,
+                test_probs,
+                t_budget,
+                extra={"fp_budget": budget},
+            )
+            budget_rows.append(row)
+
+            # Save scenario breakdown at the middle SOC budget (<= 3.0 FP/day)
+            if budget == 3.0:
+                scenario_rows.extend(compute_scenario_breakdown(model_name, test_df, test_preds))
+
+    budget_df = pd.DataFrame(budget_rows)
+    budget_df.to_csv(out_dir / "soc_budget_table.csv", index=False)
+    _plot_soc_budgets(
+        budget_df,
+        out_dir / "soc_budget_tradeoff.png",
+        f"Insider Detection Under SOC Alert Budgets ({best_fs}) — {mode_label}",
+    )
+
+    scenario_df = pd.DataFrame(scenario_rows)
+    scenario_df.to_csv(out_dir / "scenario_breakdown.csv", index=False)
+
+    print(f"\n=== Experiment 3: SOC Alert-Budget Evaluation [{best_fs}] ===")
+    cols_show = [
+        "fp_budget", "model", "threshold", "precision", "recall",
+        "false_positives_per_day", "test_insiders_detected",
+        "insiders_warned_ge_3_days", "median_lead_time_days",
+    ]
+    print(budget_df[cols_show].to_string(index=False))
+
+    print(f"\n=== Scenario Breakdown at <= 3.0 FP/day SOC Budget [{best_fs}] ===")
+    print(scenario_df.to_string(index=False))
+
+    # ------------------------------------------------------------------
+    # Experiment 4: Feature Importance (Random Forest on Selected Set)
+    # ------------------------------------------------------------------
+    rf_pipe, _, _ = cached_outputs[(best_fs, "Random Forest")]
+    rf_imp = pd.DataFrame({
+        "feature": best_cols,
+        "importance": rf_pipe.named_steps["clf"].feature_importances_,
+    }).sort_values("importance", ascending=False)
+    rf_imp.to_csv(out_dir / "feature_importance.csv", index=False)
+    _plot_feature_importance(
+        rf_imp,
+        out_dir / "feature_importance.png",
+        f"Top 15 Random Forest Features ({best_fs}) — {mode_label}",
+    )
+
+    # Save master JSON artifact
     with open(out_dir / "metrics.json", "w", encoding="utf-8") as f:
-        json.dump({"mode": mode_label, "horizon_days": config.PREDICTION_HORIZON_DAYS, "results": results}, f, indent=2)
+        json.dump(
+            {
+                "mode": mode_label,
+                "horizon_days": config.PREDICTION_HORIZON_DAYS,
+                "selected_feature_set": best_fs,
+                "n_selected_features": len(best_cols),
+                "ablation": ablation_rows,
+                "comparison_f1": f1_results,
+                "soc_budgets": budget_rows,
+                "scenario_breakdown_3fp": scenario_rows,
+            },
+            f,
+            indent=2,
+        )
 
-    # Save Precision-Recall Curve figure
-    plt.figure(figsize=(7, 5))
-    for name, ((prec, rec, _), ap) in pr_curves.items():
-        plt.plot(rec, prec, label=f"{name} (PR-AUC = {ap:.3f})")
-    plt.xlabel("Recall")
-    plt.ylabel("Precision")
-    plt.title(f"Precision-Recall Curves — {mode_label}")
-    plt.legend(loc="best")
-    plt.grid(alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(out_dir / "pr_curves.png", dpi=150)
-    plt.close()
-
-    print(f"\nSaved outputs to {out_dir}")
+    print(f"\nSaved all tables, JSON, and 4 figures to {out_dir}")
 
 
 if __name__ == "__main__":
