@@ -172,7 +172,9 @@ def run_pipeline(full_mode: bool, data_dir_override: str | None = None, rebuild_
     _plot_ablation(ablation_df, out_dir / "ablation_pr_auc.png", mode_label)
 
     # Select best feature set strictly by mean Validation PR-AUC (zero test leakage)
-    val_summary = ablation_df.groupby("feature_set")["val_pr_auc"].mean()
+    # (Static psychometric traits are retained in Experiment 1 ablation to document user-ID overfitting)
+    behavioral_df = ablation_df[ablation_df["feature_set"] != "Core + HTTP + Psych"]
+    val_summary = behavioral_df.groupby("feature_set")["val_pr_auc"].mean()
     best_fs = str(val_summary.idxmax())
     best_cols = feature_sets[best_fs]
 

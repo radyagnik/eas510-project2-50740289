@@ -5,9 +5,9 @@ Logistic Regression,3,1,0,0.0
 Decision Tree,1,4,0,0.0
 Decision Tree,2,2,0,0.0
 Decision Tree,3,1,0,0.0
-Random Forest,1,4,1,1.0
+Random Forest,1,4,2,1.5
 Random Forest,2,2,1,7.0
 Random Forest,3,1,0,0.0
 HistGradientBoosting,1,4,2,1.5
-HistGradientBoosting,2,2,0,0.0
+HistGradientBoosting,2,2,1,6.0
 HistGradientBoosting,3,1,0,0.0
